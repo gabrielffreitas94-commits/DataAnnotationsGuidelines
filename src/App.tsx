@@ -3,7 +3,11 @@ import {
   gistService,
   OFFICIAL_GIST_ID,
   extractGistId,
+  purgeLegacyCaches,
 } from './services/gistService';
+
+// Force cleanup of old v1/v2 cached data immediately on load
+purgeLegacyCaches();
 import { GuidelineSection } from './types/template';
 import {
   Copy,

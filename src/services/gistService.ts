@@ -5,10 +5,30 @@ import { DEFAULT_GUIDELINES_BY_LANG } from '../data/guidelines';
 export const OFFICIAL_GIST_ID = 'a551abab1395c1f911f0d5979c9c09e0';
 export const OFFICIAL_GIST_URL = 'https://gist.github.com/gabrielffreitas94-commits/a551abab1395c1f911f0d5979c9c09e0';
 
+// Bumped cache key to force immediate purge of old v1/v2 cached data
+const CACHE_VERSION = 'v4_5star_cockpit';
+const CACHE_KEY_PREFIX = `da_guidelines_${CACHE_VERSION}_`;
+
 export function extractGistId(gistInput: string): string {
   const clean = gistInput.trim();
   const match = clean.match(/gist\.github(?:usercontent)?\.com\/(?:[a-zA-Z0-9_-]+\/)?([a-f0-9]+)/i);
   return match ? match[1] : clean;
+}
+
+// Limpa caches antigos de versões anteriores no navegador
+export function purgeLegacyCaches() {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('da_guidelines_gist_') || k.startsWith('da_guidelines_v1_') || k.startsWith('da_guidelines_v2_') || k.startsWith('da_guidelines_v3_'))) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -85,6 +105,8 @@ export const gistService = {
     language: SupportedLanguage,
     bypassCache: boolean = false
   ): Promise<GuidelineSection[]> {
+    purgeLegacyCaches();
+
     const rawId = !gistInput || gistInput === 'default' ? OFFICIAL_GIST_ID : gistInput;
     const gistId = extractGistId(rawId);
 
@@ -92,7 +114,7 @@ export const gistService = {
       throw new Error('Informe o ID ou URL do GitHub Gist.');
     }
 
-    const cacheKey = `da_guidelines_gist_${gistId}_${language}`;
+    const cacheKey = `${CACHE_KEY_PREFIX}${gistId}_${language}`;
 
     if (bypassCache) {
       try {
@@ -105,6 +127,18 @@ export const gistService = {
       if (cached && cached.length > 0) {
         return cached;
       }
+    }
+
+    // Se for o Gist Oficial e falhar a rede ou estiver carregando pela primeira vez,
+    // retorna instantaneamente o bundle embutido atualizado
+    if (gistId === OFFICIAL_GIST_ID && !bypassCache) {
+      const embedded = this.getEmbeddedSections(language);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(embedded));
+      } catch {
+        // ignore
+      }
+      return embedded;
     }
 
     try {
@@ -141,7 +175,6 @@ export const gistService = {
       const targetFile =
         fileList.find(f => f.filename?.toLowerCase() === localizedFilename) ||
         fileList.find(f => f.filename?.toLowerCase() === 'guideline.md') ||
-        fileList.find(f => f.filename?.toLowerCase() === 'promptcraft.md') ||
         fileList.find(f => f.filename?.toLowerCase().endsWith('.md')) ||
         fileList[0];
 
@@ -186,7 +219,7 @@ export const gistService = {
 
   getCachedSections(gistId: string, language: SupportedLanguage): GuidelineSection[] | null {
     try {
-      const data = localStorage.getItem(`da_guidelines_gist_${gistId}_${language}`);
+      const data = localStorage.getItem(`${CACHE_KEY_PREFIX}${gistId}_${language}`);
       return data ? JSON.parse(data) : null;
     } catch {
       return null;

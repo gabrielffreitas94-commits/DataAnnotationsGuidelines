@@ -21,6 +21,7 @@ export interface AxisColumn {
   positives: WordItem[];
   negatives: WordItem[];
   phrases: string[];
+  notes: string[];
 }
 
 export interface ParsedOnePageSection {
@@ -46,13 +47,14 @@ export function parseOnePageMarkdown(markdown: string): ParsedOnePageSection {
       continue;
     }
 
-    // Parse > [!EXCEPTIONAL] block
+    // Parse > [!EXCEPTIONAL] block only
     if (trimmed.startsWith('>')) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith('>')) {
         quoteLines.push(lines[i].trim().replace(/^>\s?/, ''));
         i++;
       }
+      const isExceptionalBlock = quoteLines.some(l => /^\[!EXCEPTIONAL\]/i.test(l));
       for (const ql of quoteLines) {
         if (/^\[!EXCEPTIONAL\]/i.test(ql)) continue;
         if (/^Rule:/i.test(ql)) {
@@ -61,7 +63,7 @@ export function parseOnePageMarkdown(markdown: string): ParsedOnePageSection {
             .split('|')
             .map(s => s.trim())
             .filter(Boolean);
-        } else if (ql.length > 10) {
+        } else if (isExceptionalBlock && ql.length > 10) {
           exceptionalQuote = ql;
         }
       }
@@ -79,6 +81,7 @@ export function parseOnePageMarkdown(markdown: string): ParsedOnePageSection {
         positives: [],
         negatives: [],
         phrases: [],
+        notes: [],
       };
       i++;
       continue;
@@ -97,7 +100,8 @@ export function parseOnePageMarkdown(markdown: string): ParsedOnePageSection {
             meaning: meaningPart || termPart,
           });
         }
-      } else if (trimmed.startsWith('- ') && !/^-\s*\[[ xX]\]/.test(trimmed)) {
+      } else if (trimmed.startsWith('- ') && trimmed.includes('|')) {
+        // Only parse as a word item if it has a pipe '|' or explicit word bank format
         const raw = trimmed.slice(2).trim();
         const [termPart, meaningPart] = raw.split('|').map(s => s.trim());
         if (termPart) {
@@ -114,6 +118,12 @@ export function parseOnePageMarkdown(markdown: string): ParsedOnePageSection {
           .replace(/^["']|["']$/g, '');
         if (phrase) {
           currentCol.phrases.push(phrase);
+        }
+      } else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+        // Regular note/guideline bullet
+        const cleanNote = trimmed.replace(/^[-•]\s*/, '').trim();
+        if (cleanNote) {
+          currentCol.notes.push(cleanNote);
         }
       }
     }
@@ -166,17 +176,17 @@ export function GuidelineRenderer({
   };
 
   return (
-    <div className="flex-1 flex flex-col gap-2.5 min-h-0">
+    <div className="flex-1 flex flex-col gap-2 min-h-0 h-full overflow-hidden">
       {/* Bloco Fixo no Topo: 5 — Exceptional Standard */}
-      <div className="shrink-0 bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 shadow-2xs">
+      <div className="shrink-0 bg-white dark:bg-[#141416] border border-amber-500/30 dark:border-amber-500/20 rounded-xl px-3.5 py-2 shadow-2xs">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2">
           <div className="flex items-start sm:items-center gap-2.5 min-w-0">
-            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/30 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 font-mono text-[11px] font-bold shrink-0">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 dark:bg-amber-400/10 border border-amber-500/40 dark:border-amber-400/30 text-amber-800 dark:text-amber-300 font-mono text-[11px] font-bold shrink-0 shadow-2xs">
               <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
               <span>5 — Exceptional</span>
             </div>
             <p className="text-[11px] sm:text-xs text-neutral-800 dark:text-neutral-200 font-medium leading-snug">
-              <span className="font-semibold text-neutral-950 dark:text-white">Exceptional: </span>
+              <span className="font-bold text-neutral-950 dark:text-white">Exceptional: </span>
               {parsed.exceptionalQuote}
             </p>
           </div>
@@ -186,7 +196,7 @@ export function GuidelineRenderer({
               {parsed.goldenRules.map((rule, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-[#1c1c20] text-neutral-700 dark:text-neutral-300 border border-neutral-200/80 dark:border-neutral-800"
+                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-[#1c1c20] text-neutral-800 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-800"
                 >
                   <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>{rule}</span>
@@ -198,7 +208,7 @@ export function GuidelineRenderer({
       </div>
 
       {/* Grid de 4 Colunas (Parâmetros de Avaliação + Word Bank em Inglês) */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 min-h-0">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 min-h-0 h-full overflow-hidden">
         {parsed.columns.map((col, colIdx) => {
           const filteredPositives = query
             ? col.positives.filter(
@@ -223,10 +233,10 @@ export function GuidelineRenderer({
           return (
             <div
               key={colIdx}
-              className="flex flex-col min-h-0 bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xs overflow-hidden"
+              className="flex flex-col min-h-0 h-full bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xs overflow-hidden"
             >
               {/* Cabeçalho da Coluna */}
-              <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/60 dark:bg-[#18181b] shrink-0">
+              <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-[#18181b] shrink-0">
                 <h2 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 tracking-tight truncate">
                   {col.title}
                 </h2>
@@ -237,89 +247,98 @@ export function GuidelineRenderer({
                 )}
               </div>
 
-              {/* Corpo da Coluna (Listas de Palavras em Inglês + Frases) */}
-              <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 flex flex-col justify-between">
-                <div className="space-y-2.5">
-                  {/* Palavras Positivas (+) */}
-                  {filteredPositives.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                          <PlusCircle className="w-3 h-3" />
-                          <span>{labels.positiveHeader}</span>
-                        </span>
-                        <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
-                          EN
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {filteredPositives.map((item, idx) => {
-                          const isCopied = copiedTerm === item.term;
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handlePillClick(item.term, item.meaning)}
-                              onMouseEnter={() =>
-                                setHoveredItem({ term: item.term, meaning: item.meaning })
-                              }
-                              onMouseLeave={() => setHoveredItem(null)}
-                              title={`${item.term} — ${item.meaning}`}
-                              className={`group text-left px-2 py-0.5 rounded-md border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
-                                isCopied
-                                  ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
-                                  : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40 hover:border-emerald-400'
-                              }`}
-                            >
-                              <span>{item.term}</span>
-                              {isCopied && <Check className="w-2.5 h-2.5 shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {/* Corpo da Coluna com Scroll Interno (Page has zero scroll) */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-2.5">
+                {/* Notas / Diretrizes textuais (se houver) */}
+                {col.notes.length > 0 && (
+                  <div className="p-2 rounded-lg bg-neutral-50 dark:bg-[#111113] border border-neutral-200/70 dark:border-neutral-800 space-y-1">
+                    {col.notes.map((note, nIdx) => (
+                      <p key={nIdx} className="text-[10px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                        • {note}
+                      </p>
+                    ))}
+                  </div>
+                )}
 
-                  {/* Palavras de Problemas / Falhas (-) */}
-                  {filteredNegatives.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
-                          <MinusCircle className="w-3 h-3" />
-                          <span>{labels.negativeHeader}</span>
-                        </span>
-                        <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
-                          EN
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {filteredNegatives.map((item, idx) => {
-                          const isCopied = copiedTerm === item.term;
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handlePillClick(item.term, item.meaning)}
-                              onMouseEnter={() =>
-                                setHoveredItem({ term: item.term, meaning: item.meaning })
-                              }
-                              onMouseLeave={() => setHoveredItem(null)}
-                              title={`${item.term} — ${item.meaning}`}
-                              className={`group text-left px-2 py-0.5 rounded-md border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
-                                isCopied
-                                  ? 'bg-rose-600 border-rose-600 text-white font-semibold'
-                                  : 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/50 text-rose-950 dark:text-rose-200 hover:bg-rose-100/80 dark:hover:bg-rose-900/40 hover:border-rose-400'
-                              }`}
-                            >
-                              <span>{item.term}</span>
-                              {isCopied && <Check className="w-2.5 h-2.5 shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
+                {/* Palavras Positivas (+) */}
+                {filteredPositives.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                        <PlusCircle className="w-3 h-3" />
+                        <span>{labels.positiveHeader}</span>
+                      </span>
+                      <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
+                        EN
+                      </span>
                     </div>
-                  )}
-                </div>
+                    <div className="flex flex-wrap gap-1">
+                      {filteredPositives.map((item, idx) => {
+                        const isCopied = copiedTerm === item.term;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handlePillClick(item.term, item.meaning)}
+                            onMouseEnter={() =>
+                              setHoveredItem({ term: item.term, meaning: item.meaning })
+                            }
+                            onMouseLeave={() => setHoveredItem(null)}
+                            title={`${item.term} — ${item.meaning}`}
+                            className={`group text-left px-2 py-0.5 rounded-md border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                              isCopied
+                                ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
+                                : 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200/80 dark:border-emerald-900/50 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 hover:border-emerald-400'
+                            }`}
+                          >
+                            <span>{item.term}</span>
+                            {isCopied && <Check className="w-2.5 h-2.5 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Palavras de Problemas / Falhas (-) */}
+                {filteredNegatives.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                        <MinusCircle className="w-3 h-3" />
+                        <span>{labels.negativeHeader}</span>
+                      </span>
+                      <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
+                        EN
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {filteredNegatives.map((item, idx) => {
+                        const isCopied = copiedTerm === item.term;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handlePillClick(item.term, item.meaning)}
+                            onMouseEnter={() =>
+                              setHoveredItem({ term: item.term, meaning: item.meaning })
+                            }
+                            onMouseLeave={() => setHoveredItem(null)}
+                            title={`${item.term} — ${item.meaning}`}
+                            className={`group text-left px-2 py-0.5 rounded-md border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                              isCopied
+                                ? 'bg-rose-600 border-rose-600 text-white font-semibold'
+                                : 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-200/80 dark:border-rose-900/50 text-rose-950 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/40 hover:border-rose-400'
+                            }`}
+                          >
+                            <span>{item.term}</span>
+                            {isCopied && <Check className="w-2.5 h-2.5 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Frases Prontas do Eixo (EN) */}
                 {filteredPhrases.length > 0 && (
