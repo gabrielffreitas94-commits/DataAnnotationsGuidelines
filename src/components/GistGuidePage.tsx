@@ -17,44 +17,29 @@ interface GistGuidePageProps {
   onBackToWorkspace: () => void;
 }
 
-const EXAMPLE_GIST_MARKDOWN = `# 1. Checklist do Projeto
+const EXAMPLE_GIST_MARKDOWN = `# 1. Audio & Voice SxS
 
-> [!IMPORTANT]
-> Verifique todas as restrições negativas do prompt antes de comparar os modelos.
+> [!EXCEPTIONAL]
+> Complete, evidence-based, and internally consistent ratings. The annotator listens fully, separates quality, adherence, and preference, applies every displayed axis correctly, and selects one to three genuinely decisive factors.
+> Rule: Ouça 100% dos dois áudios | Separe Quality ≠ Adherence ≠ Preference | Mantenha consistência entre eixos | Escolha 1 a 3 fatores decisivos
 
-## Passos Obrigatórios
-- [ ] Executar código do Modelo A e Modelo B localmente
-- [ ] Checar todas as URLs e fatos em fontes primárias
-- [ ] Validar formatação exigida no prompt
+## 1. Audio Quality & Artifacts
+Desc: Fidelidade acústica pura e integridade do sinal (não misture com entonação ou estilo).
++ studio-grade clarity | nitidez com padrão de estúdio
++ crisp and clean | áudio limpo e bem definido
++ artifact-free signal | sinal livre de ruídos digitais
+- metallic artifacts | ruído metálico / sintético
+- muffled / muddy audio | som abafado ou sem brilho
+- abrupt cut-off | corte seco antes da última palavra
+* "Model A delivers crisp, artifact-free audio, whereas Model B suffers from noticeable metallic artifacts."
 
----
-
-# 2. Rubrica do Projeto
-
-| Dimensão | Sem Problemas | Erro Grave |
-| :--- | :--- | :--- |
-| **Instruction Following** | Cumpre 100% das regras | Viola restrição explícita |
-| **Truthfulness** | Fatos verificados | Alucinação ou dado falso |
-
----
-
-# 3. Gerador de Rationale SxS
-
-Veredito: {{veredito:select[Modelo A é melhor, Empate, Modelo B é melhor]}}
-
-Pontos Fortes do Modelo A:
-{{fortes_a:list}}
-
-Pontos Fortes do Modelo B:
-{{fortes_b:list}}
-
-{{#if incluir_teste_codigo}}
-Resultado da Execução do Código:
-{{log_execucao:code}}
-{{/if}}
-
-Conclusão Decisiva:
-{{conclusao:textarea}}`;
+## 2. Naturalness, Prosody & Pacing
+Desc: Quão humano o locutor soa: ritmo, pausas, respiração, entonação e pronúncia.
++ human-like cadence | cadência natural humana
++ expressive inflection | inflexão expressiva nas palavras-chave
+- robotic monotone | entonação reta e mecânica
+- awkward pause placement | pausa estranha no meio da frase
+* "Model A exhibits a natural cadence and expressive inflection, while Model B sounds robotic and monotone."`;
 
 export function GistGuidePage({ onBackToWorkspace }: GistGuidePageProps) {
   const { t } = useI18n();
@@ -67,25 +52,19 @@ export function GistGuidePage({ onBackToWorkspace }: GistGuidePageProps) {
   };
 
   const syntaxRows = [
-    { syntax: '# Nome da Aba', component: 'Top Tab', desc: t('guide.syntaxTabDesc') },
-    { syntax: '## Subtítulo', component: 'Card Section', desc: t('guide.syntaxCardDesc') },
-    { syntax: '- [ ] Item de verificação', component: 'Interactive Checklist', desc: t('guide.syntaxCheckDesc') },
-    { syntax: '> [!IMPORTANT] / [!TIP] / [!WARNING]', component: 'Callout Alert', desc: t('guide.syntaxAlertDesc') },
-    { syntax: '| Col 1 | Col 2 |', component: 'Rubric Table', desc: t('guide.syntaxTableDesc') },
-    { syntax: '{{campo:text}}', component: t('fields.text'), desc: t('guide.syntaxVarTextDesc') },
-    { syntax: '{{campo:textarea}}', component: t('fields.textarea'), desc: t('guide.syntaxVarTextareaDesc') },
-    { syntax: '{{campo:list}}', component: t('fields.list'), desc: t('guide.syntaxVarListDesc') },
-    { syntax: '{{campo:numbered_list}}', component: t('fields.numberedList'), desc: t('guide.syntaxVarNumListDesc') },
-    { syntax: '{{campo:select[A, B*]}}', component: t('fields.select'), desc: t('guide.syntaxVarSelectDesc') },
-    { syntax: '{{campo:multiselect[A, B]}}', component: t('fields.multiselect'), desc: t('guide.syntaxVarMultiDesc') },
-    { syntax: '{{campo:code}}', component: t('fields.code'), desc: t('guide.syntaxVarCodeDesc') },
-    { syntax: '{{#if var}}...{{/if}}', component: t('fields.conditionalBlock'), desc: t('guide.syntaxVarIfDesc') },
+    { syntax: '# 1. Audio & Voice SxS', component: 'Top Tab (1 Tela)', desc: t('guide.syntaxTabDesc') },
+    { syntax: '> [!EXCEPTIONAL]', component: '5-Star Banner', desc: 'Define o texto em inglês do padrão 5 — Exceptional no topo da tela.' },
+    { syntax: '> Rule: Regra 1 | Regra 2', component: 'Golden Rules Pills', desc: 'Pílulas de regras de ouro traduzidas exibidas à direita do banner 5 estrelas.' },
+    { syntax: '## 1. Nome do Eixo', component: 'Axis Column (1/4)', desc: 'Cria uma das 4 colunas verticais de parâmetro de avaliação na tela.' },
+    { syntax: 'Desc: Explicação curta...', component: 'Axis Description', desc: 'Resumo no idioma escolhido explicando o que avaliar nesse eixo.' },
+    { syntax: '+ english word | tradução', component: '+ Positive Word Pill', desc: 'Pílula verde com o termo em inglês (clique copia; hover mostra tradução).' },
+    { syntax: '- english flaw | tradução', component: '- Issue/Flaw Word Pill', desc: 'Pílula vermelha com a falha em inglês (clique copia; hover mostra tradução).' },
+    { syntax: '* "Model A wins..."', component: 'Decisive Phrase (EN)', desc: 'Frase pronta em inglês para iniciar ou fechar o seu Rationale.' },
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Cabeçalho do Guia */}
-      <div className="bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xs space-y-4">
+    <div className="max-w-5xl mx-auto space-y-4 pb-8">
+      <div className="bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 shadow-2xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
             <BookOpen className="w-3.5 h-3.5" />
@@ -113,56 +92,54 @@ export function GistGuidePage({ onBackToWorkspace }: GistGuidePageProps) {
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <h1 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+        <div className="space-y-1">
+          <h1 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
             {t('guide.title')}
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-3xl">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
             {t('guide.subtitle')}
           </p>
         </div>
 
-        {/* 3 Passos */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-          <div className="p-4 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200/80 dark:border-neutral-800/80 space-y-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200/80 dark:border-neutral-800/80 space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-              <Terminal className="w-4 h-4 text-neutral-500" />
+              <Terminal className="w-3.5 h-3.5 text-neutral-500" />
               <span>{t('guide.step1Title')}</span>
             </div>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
               {t('guide.step1Desc')}
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200/80 dark:border-neutral-800/80 space-y-1.5">
+          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200/80 dark:border-neutral-800/80 space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-              <Layers className="w-4 h-4 text-neutral-500" />
+              <Layers className="w-3.5 h-3.5 text-neutral-500" />
               <span>{t('guide.step2Title')}</span>
             </div>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
               {t('guide.step2Desc')}
             </p>
           </div>
 
-          <div className="p-4 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200/80 dark:border-neutral-800/80 space-y-1.5">
+          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200/80 dark:border-neutral-800/80 space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-              <Sparkles className="w-4 h-4 text-neutral-500" />
+              <Sparkles className="w-3.5 h-3.5 text-neutral-500" />
               <span>{t('guide.step3Title')}</span>
             </div>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
               {t('guide.step3Desc')}
             </p>
           </div>
         </div>
 
-        {/* Nota de i18n EFIGS+LATAM */}
-        <div className="p-4 rounded-xl bg-neutral-100/70 dark:bg-[#141417] border border-neutral-200 dark:border-neutral-800 flex items-start gap-3">
+        <div className="p-3.5 rounded-xl bg-neutral-100/70 dark:bg-[#18181b] border border-neutral-200 dark:border-neutral-800 flex items-start gap-2.5">
           <Globe className="w-4 h-4 text-neutral-700 dark:text-neutral-300 shrink-0 mt-0.5" />
-          <div className="space-y-1 text-xs">
+          <div className="space-y-0.5 text-xs">
             <div className="font-semibold text-neutral-900 dark:text-neutral-100">
               {t('guide.i18nGistTitle')}
             </div>
-            <p className="text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <p className="text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
               {t('guide.i18nGistDesc')}
             </p>
           </div>
@@ -170,41 +147,29 @@ export function GistGuidePage({ onBackToWorkspace }: GistGuidePageProps) {
       </div>
 
       {/* Tabela de Sintaxe */}
-      <div className="bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xs space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-            {t('guide.syntaxTitle')}
-          </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {t('guide.syntaxSubtitle')}
-          </p>
-        </div>
-
+      <div className="bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 shadow-2xs space-y-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+          {t('guide.syntaxTitle')}
+        </h2>
         <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-neutral-50 dark:bg-[#111113] border-b border-neutral-200 dark:border-neutral-800">
-                <th className="py-2.5 px-3.5 font-semibold text-neutral-800 dark:text-neutral-200">
-                  {t('guide.colSyntax')}
-                </th>
-                <th className="py-2.5 px-3.5 font-semibold text-neutral-800 dark:text-neutral-200">
-                  {t('guide.colComponent')}
-                </th>
-                <th className="py-2.5 px-3.5 font-semibold text-neutral-800 dark:text-neutral-200">
-                  {t('guide.colDescription')}
-                </th>
+                <th className="py-2 px-3 font-semibold">{t('guide.colSyntax')}</th>
+                <th className="py-2 px-3 font-semibold">{t('guide.colComponent')}</th>
+                <th className="py-2 px-3 font-semibold">{t('guide.colDescription')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/80">
               {syntaxRows.map((row, idx) => (
-                <tr key={idx} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/20">
-                  <td className="py-2.5 px-3.5 font-mono text-[11px] text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
+                <tr key={idx}>
+                  <td className="py-2 px-3 font-mono text-[11px] text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
                     {row.syntax}
                   </td>
-                  <td className="py-2.5 px-3.5 font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                  <td className="py-2 px-3 font-medium text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
                     {row.component}
                   </td>
-                  <td className="py-2.5 px-3.5 text-neutral-600 dark:text-neutral-400">
+                  <td className="py-2 px-3 text-neutral-600 dark:text-neutral-400">
                     {row.desc}
                   </td>
                 </tr>
@@ -214,37 +179,22 @@ export function GistGuidePage({ onBackToWorkspace }: GistGuidePageProps) {
         </div>
       </div>
 
-      {/* Template de Exemplo */}
-      <div className="bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-              {t('guide.exampleTitle')}
-            </h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {t('guide.exampleSubtitle')}
-            </p>
-          </div>
+      {/* Exemplo */}
+      <div className="bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            {t('guide.exampleTitle')}
+          </h2>
           <button
             type="button"
             onClick={handleCopyExample}
-            className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-black dark:bg-neutral-200 dark:hover:bg-white text-white dark:text-neutral-950 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-neutral-900 text-white dark:bg-neutral-200 dark:text-neutral-950 flex items-center gap-1.5 cursor-pointer"
           >
-            {copiedExample ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600" />
-                <span>{t('guide.btnCopiedExample')}</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>{t('guide.btnCopyExample')}</span>
-              </>
-            )}
+            {copiedExample ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedExample ? t('guide.btnCopiedExample') : t('guide.btnCopyExample')}</span>
           </button>
         </div>
-
-        <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200 dark:border-neutral-800 text-xs font-mono text-neutral-800 dark:text-neutral-200 overflow-x-auto leading-relaxed">
+        <pre className="p-3.5 rounded-xl bg-neutral-50 dark:bg-[#111113] border border-neutral-200 dark:border-neutral-800 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 overflow-x-auto leading-relaxed">
           {EXAMPLE_GIST_MARKDOWN}
         </pre>
       </div>

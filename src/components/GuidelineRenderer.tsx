@@ -1,614 +1,373 @@
 import { useState, useMemo } from 'react';
 import {
-  CheckSquare,
-  Square,
-  AlertTriangle,
-  Info,
-  Lightbulb,
-  ShieldAlert,
-  Flame,
-  Copy,
+  Star,
   Check,
-  RotateCcw,
-  Search,
-  X,
+  Copy,
+  PlusCircle,
+  MinusCircle,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
-import { useI18n } from '../i18n/I18nContext';
 
-interface GuidelineRendererProps {
-  sectionId: string;
-  markdown: string;
-  checkedMap: Record<string, boolean>;
-  onToggleCheck: (itemKey: string) => void;
-  onResetSectionChecks?: () => void;
-  compact?: boolean;
+export interface WordItem {
+  polarity: 'positive' | 'negative';
+  term: string; // Always in English
+  meaning: string; // Localized explanation (EFIGS + LATAM)
 }
 
-interface ParsedCallout {
-  kind: 'callout';
-  alertType: 'IMPORTANT' | 'TIP' | 'WARNING' | 'CAUTION' | 'NOTE';
-  lines: string[];
+export interface AxisColumn {
+  title: string;
+  description: string;
+  positives: WordItem[];
+  negatives: WordItem[];
+  phrases: string[];
 }
 
-interface ParsedChecklist {
-  kind: 'checklist';
-  items: { id: string; text: string; defaultChecked: boolean }[];
+export interface ParsedOnePageSection {
+  exceptionalQuote: string;
+  goldenRules: string[];
+  columns: AxisColumn[];
 }
 
-interface ParsedBulletList {
-  kind: 'list';
-  ordered: boolean;
-  items: string[];
-}
+export function parseOnePageMarkdown(markdown: string): ParsedOnePageSection {
+  const lines = markdown.split('\n');
+  let exceptionalQuote =
+    'Complete, evidence-based, and internally consistent ratings. The annotator listens fully, separates quality, adherence, and preference, applies every displayed axis correctly, and selects one to three genuinely decisive factors.';
+  let goldenRules: string[] = [];
+  const columns: AxisColumn[] = [];
+  let currentCol: AxisColumn | null = null;
 
-interface ParsedTable {
-  kind: 'table';
-  headers: string[];
-  rows: string[][];
-}
-
-interface ParsedCode {
-  kind: 'code';
-  lang: string;
-  code: string;
-}
-
-interface ParsedParagraph {
-  kind: 'paragraph';
-  text: string;
-}
-
-type ParsedBlock =
-  | ParsedCallout
-  | ParsedChecklist
-  | ParsedBulletList
-  | ParsedTable
-  | ParsedCode
-  | ParsedParagraph;
-
-interface CardGroup {
-  title: string | null;
-  blocks: ParsedBlock[];
-}
-
-function renderInlineMarkdown(text: string) {
-  const tokens = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g);
-  return tokens.map((token, i) => {
-    if (token.startsWith('**') && token.endsWith('**') && token.length > 4) {
-      return (
-        <strong key={i} className="font-semibold text-neutral-900 dark:text-neutral-100">
-          {token.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (token.startsWith('`') && token.endsWith('`') && token.length > 2) {
-      return (
-        <code
-          key={i}
-          className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200/80 dark:border-neutral-700/80"
-        >
-          {token.slice(1, -1)}
-        </code>
-      );
-    }
-    if (token.startsWith('*') && token.endsWith('*') && token.length > 2) {
-      return (
-        <em key={i} className="italic text-neutral-700 dark:text-neutral-300">
-          {token.slice(1, -1)}
-        </em>
-      );
-    }
-    return <span key={i}>{token}</span>;
-  });
-}
-
-function parseBlocksFromLines(lines: string[], sectionId: string, cardIdx: number): ParsedBlock[] {
-  const blocks: ParsedBlock[] = [];
   let i = 0;
-  let checkCounter = 0;
-
   while (i < lines.length) {
-    const rawLine = lines[i];
-    const trimmed = rawLine.trim();
+    const trimmed = lines[i].trim();
 
     if (!trimmed || trimmed === '---') {
       i++;
       continue;
     }
 
-    // 1. Code block ```
-    if (trimmed.startsWith('```')) {
-      const lang = trimmed.slice(3).trim();
-      const codeLines: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
-        codeLines.push(lines[i]);
-        i++;
-      }
-      if (i < lines.length) i++;
-      blocks.push({
-        kind: 'code',
-        lang,
-        code: codeLines.join('\n'),
-      });
-      continue;
-    }
-
-    // 2. Callout / Blockquote > [!TYPE]
+    // Parse > [!EXCEPTIONAL] block
     if (trimmed.startsWith('>')) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith('>')) {
         quoteLines.push(lines[i].trim().replace(/^>\s?/, ''));
         i++;
       }
-      const firstLine = quoteLines[0] || '';
-      const alertMatch = firstLine.match(/^\[!(IMPORTANT|TIP|WARNING|CAUTION|NOTE)\]/i);
-      const alertType = alertMatch
-        ? (alertMatch[1].toUpperCase() as ParsedCallout['alertType'])
-        : 'NOTE';
-      const bodyLines = alertMatch ? quoteLines.slice(1) : quoteLines;
-      blocks.push({
-        kind: 'callout',
-        alertType,
-        lines: bodyLines.filter(Boolean),
-      });
+      for (const ql of quoteLines) {
+        if (/^\[!EXCEPTIONAL\]/i.test(ql)) continue;
+        if (/^Rule:/i.test(ql)) {
+          goldenRules = ql
+            .replace(/^Rule:\s*/i, '')
+            .split('|')
+            .map(s => s.trim())
+            .filter(Boolean);
+        } else if (ql.length > 10) {
+          exceptionalQuote = ql;
+        }
+      }
       continue;
     }
 
-    // 3. Markdown Table | ... |
-    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-      const tableLines: string[] = [];
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i].trim());
-        i++;
+    // Parse ## Axis Column
+    if (/^##\s+/.test(trimmed)) {
+      if (currentCol) {
+        columns.push(currentCol);
       }
-      if (tableLines.length >= 2) {
-        const parseRow = (rowStr: string) =>
-          rowStr
-            .replace(/^\||\|$/g, '')
-            .split('|')
-            .map(c => c.trim());
-
-        const headers = parseRow(tableLines[0]);
-        const isSeparator = /^[\s|:-]+$/.test(tableLines[1]);
-        const dataLines = isSeparator ? tableLines.slice(2) : tableLines.slice(1);
-        const rows = dataLines.map(parseRow);
-        blocks.push({
-          kind: 'table',
-          headers,
-          rows,
-        });
-        continue;
-      }
+      currentCol = {
+        title: trimmed.replace(/^##\s+/, '').trim(),
+        description: '',
+        positives: [],
+        negatives: [],
+        phrases: [],
+      };
+      i++;
+      continue;
     }
 
-    // 4. Checklist - [ ] or - [x]
-    if (/^[-*]\s+\[([ xX])\]\s+/.test(trimmed)) {
-      const items: { id: string; text: string; defaultChecked: boolean }[] = [];
-      while (i < lines.length && /^[-*]\s+\[([ xX])\]\s+/.test(lines[i].trim())) {
-        const lineTrim = lines[i].trim();
-        const m = lineTrim.match(/^[-*]\s+\[([ xX])\]\s+(.*)$/);
-        if (m) {
-          checkCounter++;
-          items.push({
-            id: `${sectionId}_c${cardIdx}_item${checkCounter}`,
-            defaultChecked: m[1].toLowerCase() === 'x',
-            text: m[2].trim(),
+    if (currentCol) {
+      if (/^Desc:/i.test(trimmed)) {
+        currentCol.description = trimmed.replace(/^Desc:\s*/i, '').trim();
+      } else if (trimmed.startsWith('+ ')) {
+        const raw = trimmed.slice(2).trim();
+        const [termPart, meaningPart] = raw.split('|').map(s => s.trim());
+        if (termPart) {
+          currentCol.positives.push({
+            polarity: 'positive',
+            term: termPart,
+            meaning: meaningPart || termPart,
           });
         }
-        i++;
+      } else if (trimmed.startsWith('- ') && !/^-\s*\[[ xX]\]/.test(trimmed)) {
+        const raw = trimmed.slice(2).trim();
+        const [termPart, meaningPart] = raw.split('|').map(s => s.trim());
+        if (termPart) {
+          currentCol.negatives.push({
+            polarity: 'negative',
+            term: termPart,
+            meaning: meaningPart || termPart,
+          });
+        }
+      } else if (trimmed.startsWith('* ')) {
+        const phrase = trimmed
+          .slice(2)
+          .trim()
+          .replace(/^["']|["']$/g, '');
+        if (phrase) {
+          currentCol.phrases.push(phrase);
+        }
       }
-      blocks.push({
-        kind: 'checklist',
-        items,
-      });
-      continue;
     }
 
-    // 5. Regular bullet or ordered list
-    if (/^(?:[-*•]|\d+[.)])\s+/.test(trimmed)) {
-      const ordered = /^\d+[.)]\s+/.test(trimmed);
-      const items: string[] = [];
-      while (
-        i < lines.length &&
-        /^(?:[-*•]|\d+[.)])\s+/.test(lines[i].trim()) &&
-        !/^[-*]\s+\[([ xX])\]\s+/.test(lines[i].trim())
-      ) {
-        items.push(lines[i].trim().replace(/^(?:[-*•]|\d+[.)])\s+/, ''));
-        i++;
-      }
-      blocks.push({
-        kind: 'list',
-        ordered,
-        items,
-      });
-      continue;
-    }
-
-    // 6. Paragraph / Subheading ###
-    blocks.push({
-      kind: 'paragraph',
-      text: trimmed.replace(/^#{3,6}\s+/, ''),
-    });
     i++;
   }
 
-  return blocks;
+  if (currentCol) {
+    columns.push(currentCol);
+  }
+
+  return {
+    exceptionalQuote,
+    goldenRules,
+    columns,
+  };
 }
 
-export function parseMarkdownIntoCards(markdown: string, sectionId: string): CardGroup[] {
-  const lines = markdown.split('\n');
-  const rawGroups: { title: string | null; lines: string[] }[] = [];
-  let currentGroup: { title: string | null; lines: string[] } = { title: null, lines: [] };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^##\s+/.test(trimmed)) {
-      if (currentGroup.title !== null || currentGroup.lines.some(l => l.trim().length > 0)) {
-        rawGroups.push(currentGroup);
-      }
-      currentGroup = {
-        title: trimmed.replace(/^##\s+/, '').trim(),
-        lines: [],
-      };
-    } else {
-      currentGroup.lines.push(line);
-    }
-  }
-
-  if (currentGroup.title !== null || currentGroup.lines.some(l => l.trim().length > 0)) {
-    rawGroups.push(currentGroup);
-  }
-
-  return rawGroups
-    .map((g, idx) => ({
-      title: g.title,
-      blocks: parseBlocksFromLines(g.lines, sectionId, idx),
-    }))
-    .filter(g => g.blocks.length > 0);
+interface GuidelineRendererProps {
+  markdown: string;
+  searchQuery: string;
+  onSelectTerm: (term: string, meaning: string) => void;
+  labels: {
+    positiveHeader: string;
+    negativeHeader: string;
+    phrasesHeader: string;
+    clickToCopyHint: string;
+  };
 }
 
 export function GuidelineRenderer({
-  sectionId,
   markdown,
-  checkedMap,
-  onToggleCheck,
-  onResetSectionChecks,
-  compact = false,
+  searchQuery,
+  onSelectTerm,
+  labels,
 }: GuidelineRendererProps) {
-  const { t } = useI18n();
-  const [copiedCodeIdx, setCopiedCodeIdx] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [copiedTerm, setCopiedTerm] = useState<string | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<{ term: string; meaning: string } | null>(null);
 
-  const cards = useMemo(() => parseMarkdownIntoCards(markdown, sectionId), [markdown, sectionId]);
+  const parsed = useMemo(() => parseOnePageMarkdown(markdown), [markdown]);
+  const query = searchQuery.trim().toLowerCase();
 
-  const allChecklistItems = useMemo(() => {
-    const list: { id: string; defaultChecked: boolean }[] = [];
-    for (const c of cards) {
-      for (const b of c.blocks) {
-        if (b.kind === 'checklist') {
-          list.push(...b.items);
-        }
-      }
-    }
-    return list;
-  }, [cards]);
-
-  const totalChecks = allChecklistItems.length;
-  const completedChecks = allChecklistItems.filter(item =>
-    item.id in checkedMap ? checkedMap[item.id] : item.defaultChecked
-  ).length;
-  const progressPercent = totalChecks > 0 ? Math.round((completedChecks / totalChecks) * 100) : 0;
-
-  const filteredCards = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return cards;
-    return cards.filter(card => {
-      if (card.title?.toLowerCase().includes(q)) return true;
-      return card.blocks.some(b => {
-        if (b.kind === 'callout') return b.lines.some(l => l.toLowerCase().includes(q));
-        if (b.kind === 'checklist') return b.items.some(i => i.text.toLowerCase().includes(q));
-        if (b.kind === 'list') return b.items.some(i => i.toLowerCase().includes(q));
-        if (b.kind === 'paragraph') return b.text.toLowerCase().includes(q);
-        if (b.kind === 'code') return b.code.toLowerCase().includes(q);
-        if (b.kind === 'table') {
-          return (
-            b.headers.some(h => h.toLowerCase().includes(q)) ||
-            b.rows.some(r => r.some(c => c.toLowerCase().includes(q)))
-          );
-        }
-        return false;
-      });
-    });
-  }, [cards, searchQuery]);
-
-  const handleCopyCode = (code: string, id: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCodeIdx(id);
-    setTimeout(() => setCopiedCodeIdx(null), 1800);
+  const handlePillClick = (term: string, meaning: string) => {
+    navigator.clipboard.writeText(term);
+    setCopiedTerm(term);
+    onSelectTerm(term, meaning);
+    setTimeout(() => {
+      setCopiedTerm(prev => (prev === term ? null : prev));
+    }, 1400);
   };
 
   return (
-    <div className="space-y-4">
-      {/* Barra de Progresso do Checklist + Filtro Rápido */}
-      {!compact && (totalChecks > 0 || cards.length > 1) && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 shadow-2xs">
-          {totalChecks > 0 ? (
-            <div className="flex-1 space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
-                  <CheckSquare className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-400" />
-                  <span>{t('workspace.checklistProgress')}</span>
-                </span>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                    {t('workspace.checklistCompleted', {
-                      done: completedChecks,
-                      total: totalChecks,
-                      percent: progressPercent,
-                    })}
-                  </span>
-                  {completedChecks > 0 && onResetSectionChecks && (
-                    <button
-                      type="button"
-                      onClick={onResetSectionChecks}
-                      className="text-[11px] font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      <span>{t('workspace.btnResetChecklist')}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div className="w-full h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 rounded-full ${
-                    progressPercent === 100
-                      ? 'bg-emerald-500 dark:bg-emerald-400'
-                      : 'bg-neutral-900 dark:bg-neutral-200'
-                  }`}
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
+    <div className="flex-1 flex flex-col gap-2.5 min-h-0">
+      {/* Bloco Fixo no Topo: 5 — Exceptional Standard */}
+      <div className="shrink-0 bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 shadow-2xs">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/30 dark:border-amber-400/30 text-amber-700 dark:text-amber-300 font-mono text-[11px] font-bold shrink-0">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+              <span>5 — Exceptional</span>
             </div>
-          ) : (
-            <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              {t('workspace.modeGuidelineBadge')}
+            <p className="text-[11px] sm:text-xs text-neutral-800 dark:text-neutral-200 font-medium leading-snug">
+              <span className="font-semibold text-neutral-950 dark:text-white">Exceptional: </span>
+              {parsed.exceptionalQuote}
+            </p>
+          </div>
+
+          {parsed.goldenRules.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+              {parsed.goldenRules.map((rule, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-[#1c1c20] text-neutral-700 dark:text-neutral-300 border border-neutral-200/80 dark:border-neutral-800"
+                >
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>{rule}</span>
+                </span>
+              ))}
             </div>
           )}
-
-          {/* Campo de Filtro Rápido */}
-          <div className="relative w-full sm:w-64 shrink-0">
-            <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder={t('workspace.searchPlaceholder')}
-              className="w-full text-xs bg-neutral-50 dark:bg-[#111113] border border-neutral-200 dark:border-neutral-800 rounded-xl pl-8 pr-7 py-1.5 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-500"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
         </div>
-      )}
+      </div>
 
-      {/* Cards de Conteúdo */}
-      <div className="space-y-4">
-        {filteredCards.map((card, cardIdx) => (
-          <div
-            key={cardIdx}
-            className={`${
-              card.title
-                ? 'bg-white dark:bg-[#161618] border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 shadow-2xs space-y-4'
-                : 'space-y-3'
-            }`}
-          >
-            {card.title && (
-              <div className="border-b border-neutral-100 dark:border-neutral-800/80 pb-2.5 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 tracking-tight">
-                  {card.title}
+      {/* Grid de 4 Colunas (Parâmetros de Avaliação + Word Bank em Inglês) */}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5 min-h-0">
+        {parsed.columns.map((col, colIdx) => {
+          const filteredPositives = query
+            ? col.positives.filter(
+                p =>
+                  p.term.toLowerCase().includes(query) ||
+                  p.meaning.toLowerCase().includes(query)
+              )
+            : col.positives;
+
+          const filteredNegatives = query
+            ? col.negatives.filter(
+                n =>
+                  n.term.toLowerCase().includes(query) ||
+                  n.meaning.toLowerCase().includes(query)
+              )
+            : col.negatives;
+
+          const filteredPhrases = query
+            ? col.phrases.filter(ph => ph.toLowerCase().includes(query))
+            : col.phrases;
+
+          return (
+            <div
+              key={colIdx}
+              className="flex flex-col min-h-0 bg-white dark:bg-[#141416] border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xs overflow-hidden"
+            >
+              {/* Cabeçalho da Coluna */}
+              <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/60 dark:bg-[#18181b] shrink-0">
+                <h2 className="text-xs font-bold text-neutral-900 dark:text-neutral-100 tracking-tight truncate">
+                  {col.title}
                 </h2>
+                {col.description && (
+                  <p className="text-[10px] text-neutral-500 dark:text-neutral-400 leading-tight mt-0.5 line-clamp-2">
+                    {col.description}
+                  </p>
+                )}
               </div>
-            )}
 
-            <div className="space-y-3.5">
-              {card.blocks.map((block, bIdx) => {
-                if (block.kind === 'callout') {
-                  const styles = {
-                    IMPORTANT: {
-                      wrap: 'bg-neutral-100/90 dark:bg-[#19191d] border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200',
-                      icon: <ShieldAlert className="w-4 h-4 text-neutral-900 dark:text-neutral-100 shrink-0 mt-0.5" />,
-                    },
-                    TIP: {
-                      wrap: 'bg-emerald-50/70 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200',
-                      icon: <Lightbulb className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />,
-                    },
-                    WARNING: {
-                      wrap: 'bg-amber-50/80 dark:bg-amber-950/25 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200',
-                      icon: <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />,
-                    },
-                    CAUTION: {
-                      wrap: 'bg-red-50/80 dark:bg-red-950/25 border-red-200 dark:border-red-900/60 text-red-900 dark:text-red-200',
-                      icon: <Flame className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />,
-                    },
-                    NOTE: {
-                      wrap: 'bg-neutral-50 dark:bg-[#141417] border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300',
-                      icon: <Info className="w-4 h-4 text-neutral-500 dark:text-neutral-400 shrink-0 mt-0.5" />,
-                    },
-                  }[block.alertType];
-
-                  return (
-                    <div
-                      key={bIdx}
-                      className={`p-3.5 rounded-xl border text-xs leading-relaxed flex items-start gap-3 ${styles.wrap}`}
-                    >
-                      {styles.icon}
-                      <div className="space-y-1 flex-1">
-                        {block.lines.map((line, lIdx) => (
-                          <p key={lIdx}>{renderInlineMarkdown(line)}</p>
-                        ))}
+              {/* Corpo da Coluna (Listas de Palavras em Inglês + Frases) */}
+              <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  {/* Palavras Positivas (+) */}
+                  {filteredPositives.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                          <PlusCircle className="w-3 h-3" />
+                          <span>{labels.positiveHeader}</span>
+                        </span>
+                        <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
+                          EN
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {filteredPositives.map((item, idx) => {
+                          const isCopied = copiedTerm === item.term;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handlePillClick(item.term, item.meaning)}
+                              onMouseEnter={() =>
+                                setHoveredItem({ term: item.term, meaning: item.meaning })
+                              }
+                              onMouseLeave={() => setHoveredItem(null)}
+                              title={`${item.term} — ${item.meaning}`}
+                              className={`group text-left px-2 py-0.5 rounded-md border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                                isCopied
+                                  ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
+                                  : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50 text-emerald-950 dark:text-emerald-200 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40 hover:border-emerald-400'
+                              }`}
+                            >
+                              <span>{item.term}</span>
+                              {isCopied && <Check className="w-2.5 h-2.5 shrink-0" />}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                }
+                  )}
 
-                if (block.kind === 'checklist') {
-                  return (
-                    <div key={bIdx} className="space-y-2">
-                      {block.items.map(item => {
-                        const isChecked =
-                          item.id in checkedMap ? checkedMap[item.id] : item.defaultChecked;
+                  {/* Palavras de Problemas / Falhas (-) */}
+                  {filteredNegatives.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                          <MinusCircle className="w-3 h-3" />
+                          <span>{labels.negativeHeader}</span>
+                        </span>
+                        <span className="text-[9px] font-mono text-neutral-400 dark:text-neutral-500">
+                          EN
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {filteredNegatives.map((item, idx) => {
+                          const isCopied = copiedTerm === item.term;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handlePillClick(item.term, item.meaning)}
+                              onMouseEnter={() =>
+                                setHoveredItem({ term: item.term, meaning: item.meaning })
+                              }
+                              onMouseLeave={() => setHoveredItem(null)}
+                              title={`${item.term} — ${item.meaning}`}
+                              className={`group text-left px-2 py-0.5 rounded-md border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                                isCopied
+                                  ? 'bg-rose-600 border-rose-600 text-white font-semibold'
+                                  : 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-900/50 text-rose-950 dark:text-rose-200 hover:bg-rose-100/80 dark:hover:bg-rose-900/40 hover:border-rose-400'
+                              }`}
+                            >
+                              <span>{item.term}</span>
+                              {isCopied && <Check className="w-2.5 h-2.5 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Frases Prontas do Eixo (EN) */}
+                {filteredPhrases.length > 0 && (
+                  <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800/70 space-y-1">
+                    <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      <span>{labels.phrasesHeader}</span>
+                    </span>
+                    <div className="space-y-1">
+                      {filteredPhrases.map((phrase, pIdx) => {
+                        const isCopied = copiedTerm === phrase;
                         return (
-                          <div
-                            key={item.id}
-                            onClick={() => onToggleCheck(item.id)}
-                            className={`group flex items-start gap-3 p-3 rounded-xl border text-xs leading-relaxed transition-all cursor-pointer select-none ${
-                              isChecked
-                                ? 'bg-neutral-50/70 dark:bg-[#121214] border-neutral-200/70 dark:border-neutral-800/60 text-neutral-400 dark:text-neutral-500'
-                                : 'bg-neutral-50/40 dark:bg-[#111113] border-neutral-200 dark:border-neutral-800/90 text-neutral-800 dark:text-neutral-200 hover:border-neutral-400 dark:hover:border-neutral-700'
+                          <button
+                            key={pIdx}
+                            type="button"
+                            onClick={() => handlePillClick(phrase, labels.clickToCopyHint)}
+                            className={`w-full text-left p-1.5 rounded-lg border text-[10px] font-mono leading-snug transition-all cursor-pointer flex items-start justify-between gap-1.5 ${
+                              isCopied
+                                ? 'bg-neutral-900 text-white dark:bg-neutral-200 dark:text-neutral-950 border-neutral-900'
+                                : 'bg-neutral-50 dark:bg-[#111113] border-neutral-200/80 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-600'
                             }`}
                           >
-                            <button
-                              type="button"
-                              className="mt-0.5 shrink-0 text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors"
-                            >
-                              {isChecked ? (
-                                <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                              ) : (
-                                <Square className="w-4 h-4" />
-                              )}
-                            </button>
-                            <div className={`flex-1 ${isChecked ? 'line-through opacity-75' : ''}`}>
-                              {renderInlineMarkdown(item.text)}
-                            </div>
-                          </div>
+                            <span className="line-clamp-2">"{phrase}"</span>
+                            {isCopied ? (
+                              <Check className="w-3 h-3 shrink-0 mt-0.5" />
+                            ) : (
+                              <Copy className="w-3 h-3 shrink-0 mt-0.5 opacity-50" />
+                            )}
+                          </button>
                         );
                       })}
                     </div>
-                  );
-                }
-
-                if (block.kind === 'list') {
-                  return (
-                    <ul key={bIdx} className="space-y-2 pl-1">
-                      {block.items.map((item, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-start gap-2.5 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed"
-                        >
-                          {block.ordered ? (
-                            <span className="w-5 h-5 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 font-mono text-[10px] font-bold text-neutral-700 dark:text-neutral-300 flex items-center justify-center shrink-0 mt-0.5">
-                              {idx + 1}
-                            </span>
-                          ) : (
-                            <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0 mt-2" />
-                          )}
-                          <span className="flex-1">{renderInlineMarkdown(item)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }
-
-                if (block.kind === 'table') {
-                  return (
-                    <div
-                      key={bIdx}
-                      className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800"
-                    >
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-neutral-50 dark:bg-[#111113] border-b border-neutral-200 dark:border-neutral-800">
-                            {block.headers.map((header, hIdx) => (
-                              <th
-                                key={hIdx}
-                                className="py-2.5 px-3.5 font-semibold text-neutral-800 dark:text-neutral-200 whitespace-nowrap"
-                              >
-                                {renderInlineMarkdown(header)}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800/80">
-                          {block.rows.map((row, rIdx) => (
-                            <tr
-                              key={rIdx}
-                              className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/20 transition-colors"
-                            >
-                              {row.map((cell, cIdx) => (
-                                <td
-                                  key={cIdx}
-                                  className="py-2.5 px-3.5 text-neutral-700 dark:text-neutral-300 leading-relaxed align-top"
-                                >
-                                  {renderInlineMarkdown(cell)}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                }
-
-                if (block.kind === 'code') {
-                  const codeId = `${cardIdx}_${bIdx}`;
-                  const isCopied = copiedCodeIdx === codeId;
-                  return (
-                    <div
-                      key={bIdx}
-                      className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-[#111113] overflow-hidden"
-                    >
-                      <div className="px-3.5 py-1.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-100/60 dark:bg-[#141417]">
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                          {block.lang || 'snippet'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyCode(block.code, codeId)}
-                          className="flex items-center gap-1 text-[11px] font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
-                        >
-                          {isCopied ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                              <span>{t('workspace.copiedSnippet')}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>{t('workspace.copySnippet')}</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <pre className="p-3.5 text-xs font-mono text-neutral-800 dark:text-neutral-200 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                        {block.code}
-                      </pre>
-                    </div>
-                  );
-                }
-
-                return (
-                  <p
-                    key={bIdx}
-                    className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed"
-                  >
-                    {renderInlineMarkdown(block.text)}
-                  </p>
-                );
-              })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
+      {/* Tooltip / Legenda Instantânea da Palavra sob o Mouse */}
+      {hoveredItem && (
+        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 pointer-events-none bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-950 px-3 py-1 rounded-full shadow-lg text-xs flex items-center gap-2 border border-neutral-700 dark:border-neutral-300">
+          <span className="font-mono font-bold">{hoveredItem.term}</span>
+          <span className="opacity-60">→</span>
+          <span>{hoveredItem.meaning}</span>
+        </div>
+      )}
     </div>
   );
 }
