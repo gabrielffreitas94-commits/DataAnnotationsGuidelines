@@ -5,8 +5,8 @@ import { DEFAULT_GUIDELINES_BY_LANG } from '../data/guidelines';
 export const OFFICIAL_GIST_ID = 'a551abab1395c1f911f0d5979c9c09e0';
 export const OFFICIAL_GIST_URL = 'https://gist.github.com/gabrielffreitas94-commits/a551abab1395c1f911f0d5979c9c09e0';
 
-// Bumped cache key to force immediate purge of old v1/v2 cached data
-const CACHE_VERSION = 'v4_5star_cockpit';
+// Bumped cache key to force immediate purge of old v1/v2/v3/v4 cached data
+const CACHE_VERSION = 'v5_audio_prosody';
 const CACHE_KEY_PREFIX = `da_guidelines_${CACHE_VERSION}_`;
 
 export function extractGistId(gistInput: string): string {
@@ -21,7 +21,7 @@ export function purgeLegacyCaches() {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && (k.startsWith('da_guidelines_gist_') || k.startsWith('da_guidelines_v1_') || k.startsWith('da_guidelines_v2_') || k.startsWith('da_guidelines_v3_'))) {
+      if (k && (k.startsWith('da_guidelines_gist_') || k.startsWith('da_guidelines_v1_') || k.startsWith('da_guidelines_v2_') || k.startsWith('da_guidelines_v3_') || k.startsWith('da_guidelines_v4_'))) {
         keysToRemove.push(k);
       }
     }
